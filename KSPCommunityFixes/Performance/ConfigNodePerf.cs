@@ -28,6 +28,7 @@ namespace KSPCommunityFixes.Performance
         const int _SaveBufferSize = 64 * 1024;
         const int _ReadBufferSize = 1024 * 1024;
         private static readonly char[] _charBuf = new char[_ReadBufferSize];
+        private static readonly byte[] _byteBuf = new byte[_ReadBufferSize];
         static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
         static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
@@ -722,6 +723,35 @@ namespace KSPCommunityFixes.Performance
             sw.Write(_Newline);
         }
 
+        private static byte[] ReadFileBytes(string path, out int length)
+        {
+            using FileStream stream = new FileStream(path, FileMode.Open);
+            long flen = stream.Length;
+            if (flen > int.MaxValue)
+                throw new FileLoadException("file size too large for int length");
+            length = (int)flen;
+
+            int offset = 0;
+            int remaining = length;
+            byte[] bytes;
+            if (length > _ReadBufferSize)
+                bytes = new byte[length];
+            else
+                bytes = _byteBuf;
+
+            while (remaining > 0)
+            {
+                int count = stream.Read(bytes, offset, remaining);
+                if (count == 0)
+                    throw new IOException("unexpected end of stream");
+
+                offset += count;
+                remaining -= count;
+            }
+
+            return bytes;
+        }
+
         // This method replicates the behaviour of StreamReader.DetectEncoding.
         private static Encoding ReadFile_DetectEncoding(byte[] bytes, out int offset)
         {
@@ -769,17 +799,17 @@ namespace KSPCommunityFixes.Performance
         private static char[] ReadFileChars(string path, out int length)
         {
             char[] chars;
-            byte[] bytes = File.ReadAllBytes(path);
+            byte[] bytes = ReadFileBytes(path, out int flength);
             var encoding = ReadFile_DetectEncoding(bytes, out int offset);
             var decoder = encoding.GetDecoder();
 
-            var estimate = encoding.GetMaxCharCount(bytes.Length - offset);
+            var estimate = encoding.GetMaxCharCount(flength - offset);
             if (estimate <= _ReadBufferSize)
                 chars = _charBuf;
             else
                 chars = new char[estimate];
 
-            length = decoder.GetChars(bytes, offset, bytes.Length - offset, chars, 0);
+            length = decoder.GetChars(bytes, offset, flength - offset, chars, 0);
             return chars;
         }
 
