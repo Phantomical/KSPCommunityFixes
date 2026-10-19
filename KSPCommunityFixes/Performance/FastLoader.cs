@@ -2494,12 +2494,22 @@ namespace KSPCommunityFixes.Performance
         // Attempting to load a compressed mipmap whose size is not a multiple of the
         // DDS block size (4x4) causes unity to crash. To avoid this we need to
         // only include textures whose mipmaps are the correct size.
-        private static bool EligibleForStreaming(in DDSPreparedHeader hdr) =>
-            hdr.StreamedSize >= MinStreamingBytes
-            && IsBlockAligned(
-                hdr.Format,
-                Math.Max(1, hdr.Width >> TextureStreaming.MaxStreamingMipReduction),
-                Math.Max(1, hdr.Height >> TextureStreaming.MaxStreamingMipReduction));
+        //
+        // Every mip that streaming can load as the top mip has to be checked: NPOT
+        // sizes like 100 are aligned at mip 3 (12) but not at mip 1 (50).
+        private static bool EligibleForStreaming(in DDSPreparedHeader hdr)
+        {
+            if (hdr.StreamedSize < MinStreamingBytes)
+                return false;
+
+            for (int mip = 0; mip <= TextureStreaming.MaxStreamingMipReduction; mip++)
+            {
+                if (!IsBlockAligned(hdr.Format, Math.Max(1, hdr.Width >> mip), Math.Max(1, hdr.Height >> mip)))
+                    return false;
+            }
+
+            return true;
+        }
 
         // The number of mip levels Unity allocates for a full mip chain.
         private static int ComputeMipCount(int width, int height)
