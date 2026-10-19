@@ -1359,13 +1359,7 @@ namespace KSPCommunityFixes.Performance
                 return;
 
             for (int i = 0; i < newTextures.Count; i++)
-            {
-                TextureInfo ti = newTextures[i];
-                if (ti == null)
-                    continue;
-                ReleaseToStreaming(ti.texture);
-                ReleaseToStreaming(ti.normalMap);
-            }
+                ReleaseToStreaming(newTextures[i]?.texture);
         }
 
         private static void PartLoader_ReplacePartTexture_Postfix(UrlConfig urlConfig, string textureName, bool normalMap)
