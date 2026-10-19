@@ -28,20 +28,29 @@ internal class TextureStreaming : BasePatch
 
     internal static string LOC_StreamingEnabledTitle = "Texture streaming";
     internal static string LOC_StreamingEnabledTooltip =
-        "Stream part textures from files on disk as they are needed. "
-        + "Ensures VRAM usage for part and IVA textures stays within the "
-        + "budget that you set.";
+        "Stream part and IVA textures from files on disk as they are needed, "
+        + "so that textures far from the camera use less VRAM.";
     internal static string LOC_StreamingBudgetTitle = "Streaming memory budget (MB)";
     internal static string LOC_StreamingBudgetTooltip =
-        "The amount of memory that is allocated to store streaming textures. "
-        + "Unity will automatically load and unload parts of textures to stay "
-        + "under this limit.";
+        "The minimum amount of memory reserved for streaming textures. "
+        + "If more VRAM is available then streaming textures may use it, "
+        + "up to 80% of total VRAM.";
     // Format string for the budget slider's value readout; <<1>> is the megabyte value.
     internal static string LOC_F_StreamingBudgetValue = "<<1>> MB";
 
     protected override Version VersionMin => new(1, 12, 3);
 
-    protected override void ApplyPatches() { }
+    // Texture streaming relies on the FastLoader to load textures with streaming enabled.
+    private static bool streamingAvailable;
+
+    protected override void ApplyPatches()
+    {
+        // Each of these calls QualitySettings.SetQualityLevel, which replaces the streaming
+        // settings with the ones from the quality preset.
+        AddPatch(PatchType.Postfix, typeof(GameSettings), nameof(GameSettings.ApplySettings));
+        AddPatch(PatchType.Postfix, typeof(GameSettings), "ApplyEngineSettings");
+        AddPatch(PatchType.Postfix, typeof(VideoSettings), nameof(VideoSettings.ApplySettings));
+    }
 
     protected override void OnLoadData(ConfigNode node)
     {
@@ -54,15 +63,28 @@ internal class TextureStreaming : BasePatch
         if (!KSPCFFastLoader.IsPatchEnabled)
             return;
 
+        streamingAvailable = true;
+
         var go = new GameObject();
         go.AddComponent<TextureStreamingController>();
 
-        QualitySettings.streamingMipmapsActive = MipmapStreamingEnabled;
+        ApplyQualitySettings();
     }
 
-    internal void OnSettingsUpdated()
+    static void GameSettings_ApplySettings_Postfix() => ApplyQualitySettings();
+
+    static void GameSettings_ApplyEngineSettings_Postfix() => ApplyQualitySettings();
+
+    static void VideoSettings_ApplySettings_Postfix() => ApplyQualitySettings();
+
+    internal static void ApplyQualitySettings()
     {
+        if (!streamingAvailable)
+            return;
+
         QualitySettings.streamingMipmapsActive = MipmapStreamingEnabled;
+        QualitySettings.streamingMipmapsAddAllCameras = true;
+        QualitySettings.streamingMipmapsMaxLevelReduction = MaxStreamingMipReduction;
     }
 }
 
@@ -71,9 +93,6 @@ internal class TextureStreamingController : MonoBehaviour
     void Awake()
     {
         DontDestroyOnLoad(this);
-
-        QualitySettings.streamingMipmapsAddAllCameras = true;
-        QualitySettings.streamingMipmapsMaxLevelReduction = TextureStreaming.MaxStreamingMipReduction;
     }
 
     void Start()
