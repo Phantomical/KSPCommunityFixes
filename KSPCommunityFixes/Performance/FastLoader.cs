@@ -1302,6 +1302,12 @@ namespace KSPCommunityFixes.Performance
 
             Dictionary<string, Texture2D> map = state.Map;
 
+            // Unity ignores Texture.requestedMipmapLevel unless mipmap streaming has
+            // been activated at some point. We activate it while pinning textures and
+            // reset it back once that is complete.
+            bool streamingWasActive = QualitySettings.streamingMipmapsActive;
+            QualitySettings.streamingMipmapsActive = true;
+
             foreach (var item in items)
             {
                 TextureLoadRequest req = item.Request;
@@ -1330,6 +1336,8 @@ namespace KSPCommunityFixes.Performance
                 if (frameTime > 0.1)
                     yield return null;
             }
+
+            QualitySettings.streamingMipmapsActive = streamingWasActive;
         }
         #endregion
 
