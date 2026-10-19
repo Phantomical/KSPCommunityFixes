@@ -126,7 +126,11 @@ namespace KSPCommunityFixes
                     () => (!TextureStreaming.MipmapStreamingEnabled)
                         ? Localizer.Format("#autoLOC_6001071")  //"Disabled"
                         : Localizer.Format("#autoLOC_6001072"), //"Enabled"
-                    b => TextureStreaming.MipmapStreamingEnabled = b, 150f);
+                    b =>
+                    {
+                        TextureStreaming.MipmapStreamingEnabled = b;
+                        TextureStreaming.ApplyQualitySettings();
+                    }, 150f);
                 streamingToggle.tooltipText = TextureStreaming.LOC_StreamingEnabledTooltip;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(
